@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 *.so
 
+config.toml
 tracker.log
 tracker.state.json
 
@@ -22,4 +23,5 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
 
