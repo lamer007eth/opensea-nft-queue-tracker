@@ -5,6 +5,9 @@ __pycache__/
 *.pyd
 *.so
 
+tracker.log
+tracker.state.json
+
 # Virtual env
 .venv/
 venv/
@@ -19,3 +22,4 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
