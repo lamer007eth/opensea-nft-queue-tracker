@@ -1,31 +1,38 @@
-# OpenSea NFT Queue Tracker (Console MVP)
+# OpenSea NFT Queue Tracker
 
-Консольный Python-проект для отслеживания позиции вашей NFT в очереди продаж коллекции OpenSea.
+A console-based Python 3.11+ tracker for monitoring your NFT position in an OpenSea collection sale queue.
 
-## Что делает
+## Features
 
-- Раз в `check_interval_seconds` запрашивает активные листинги коллекции.
-- Сортирует листинги и определяет позицию NFT по `token_id`.
-- Пишет результат в консоль и в лог-файл.
-- Если позиция изменилась с прошлой проверки, пишет отдельное сообщение.
-- Если NFT отсутствует среди активных листингов, выводит понятное сообщение.
+- Fetches active collection listings every `check_interval_seconds`.
+- Deduplicates listings by `token_id` (keeps the minimum price per token).
+- Calculates your NFT queue position from the deduplicated list.
+- Prints a compact human-readable status block in the console every cycle.
+- Writes a short machine-friendly line to a log file every cycle.
+- Stores last known position in a local state file across restarts.
+- Supports one-time validation mode (`--validate-once`) with detailed diagnostics.
+- Optional Telegram notifications:
+  - one startup message after the first successful check,
+  - then only on position change.
 
-## Структура
+## Project Structure
 
-- `main.py` - точка входа.
-- `config.toml` - конфиг проекта.
-- `src/nft_queue_tracker/config.py` - загрузка и валидация конфига.
-- `src/nft_queue_tracker/models.py` - модели данных.
-- `src/nft_queue_tracker/providers/base.py` - интерфейс источника данных.
-- `src/nft_queue_tracker/providers/opensea_api.py` - реализация через OpenSea API с ретраями.
-- `src/nft_queue_tracker/position.py` - сортировка и расчет позиции NFT.
-- `src/nft_queue_tracker/tracker.py` - основной цикл трекера.
+- `main.py` - entry point.
+- `config.toml` - runtime configuration.
+- `requirements.txt` - Python dependencies.
+- `src/nft_queue_tracker/config.py` - config loading and validation.
+- `src/nft_queue_tracker/models.py` - listing model.
+- `src/nft_queue_tracker/position.py` - deduplication, sorting, and position helpers.
+- `src/nft_queue_tracker/tracker.py` - main loop, output, logging, state, Telegram flow.
+- `src/nft_queue_tracker/telegram_notifier.py` - Telegram Bot API sender (`sendMessage`).
+- `src/nft_queue_tracker/providers/base.py` - provider interface.
+- `src/nft_queue_tracker/providers/opensea_api.py` - OpenSea API implementation.
 
-## Требования
+## Requirements
 
 - Python 3.11+
 
-## Установка
+## Installation
 
 ```bash
 python -m venv .venv
@@ -33,44 +40,84 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Настройка
+## Configuration
 
-Отредактируйте `config.toml`:
+Edit `config.toml`:
 
 ```toml
-collection_slug = "your-collection-slug"
-token_id = "1234"
+collection_slug = "cambriaislands"
+token_id = "2485"
 check_interval_seconds = 300
 output_log_file = "tracker.log"
-opensea_api_key = ""
+opensea_api_key = "PASTE_OPENSEA_KEY"
+
+telegram_enabled = true
+telegram_bot_token = "PASTE_TELEGRAM_BOT_TOKEN"
+telegram_chat_id = "644262842"
 ```
 
-`opensea_api_key` можно оставить пустым и передавать ключ через переменную окружения `OPENSEA_API_KEY`.
+Notes:
+- If Telegram is disabled or not configured, tracking still works normally.
+- If Telegram send fails, the tracker logs the error and continues.
 
-## Запуск
+## Run
 
-Обычный режим (каждые N секунд):
+Normal loop mode:
 
 ```bash
 python main.py
 ```
 
-Диагностический режим (один запуск и выход):
+One-time validation mode:
 
 ```bash
 python main.py --validate-once
 ```
 
-В диагностическом режиме выводятся:
-- статистика извлечения полей (`token_id`, `price`, `listed_at`),
-- позиция NFT,
-- окно `10 до + NFT + 10 после`,
-- все найденные листинги, если у `token_id` есть дубликаты.
+## Queue Logic
 
-## Обработка ошибок сети
+1. Fetch active listings from OpenSea.
+2. Group by `token_id`.
+3. Keep one listing per token with minimum `price_native`.
+4. Sort queue by:
+   - `price_native` ascending,
+   - `listed_at` ascending,
+   - normalized `token_id`.
+5. Find target `token_id` position (1-based).
 
-В `OpenSeaApiProvider` включены повторные попытки при временных ошибках сети/сервера (429/5xx и сетевые исключения).
+## Console Output
 
-## Расширяемость (на будущее)
+Each cycle prints a compact status block with:
+- collection name (fallback: `collection_slug`),
+- floor price,
+- top offer,
+- listed count,
+- your position,
+- your price,
+- timestamp.
 
-Архитектура построена через интерфейс `ListingsProvider`. Это позволяет позже добавить второй источник данных (например, парсинг HTML-страницы OpenSea) без изменения логики трекера и расчета позиции.
+If floor or top offer is unavailable (or non-positive), it prints `N/A`.
+
+## Telegram Notifications
+
+Uses Telegram Bot API `sendMessage` with plain text.
+
+Message rules:
+- First successful check in current run: sends `Tracker started`.
+- Later checks: sends only when position changes (`from X -> Y`).
+- No message when position is unchanged.
+
+## Files Written at Runtime
+
+- Log file: path from `output_log_file`
+  - line format: `timestamp | token_id | position | total | price_eth`
+- State file: same base name as log file, suffix `.state.json`
+  - stores last known position for restart continuity.
+
+## Networking and Retries
+
+OpenSea requests use retries with backoff for temporary errors (e.g. `429`, `5xx`, network exceptions).
+
+## Extensibility
+
+Provider architecture is interface-based (`ListingsProvider`), so data source can be swapped later (for example, HTML parsing) without changing queue calculation logic.
