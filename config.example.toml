@@ -1,0 +1,9 @@
+collection_slug = "cambriaislands"
+token_id = "2485"
+check_interval_seconds = 300
+output_log_file = "tracker.log"
+opensea_api_key = "PASTE_OPENSEA_KEY"
+
+telegram_enabled = true
+telegram_bot_token = "PASTE_TELEGRAM_BOT_TOKEN"
+telegram_chat_id = "123456789"
