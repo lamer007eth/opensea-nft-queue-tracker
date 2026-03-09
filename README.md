@@ -42,6 +42,8 @@ pip install -r requirements.txt
 
 ## Configuration
 
+Copy config.example.toml → config.toml
+
 Edit `config.toml`:
 
 ```toml
