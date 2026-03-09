@@ -1,0 +1,1 @@
+﻿"""NFT queue tracker package."""
