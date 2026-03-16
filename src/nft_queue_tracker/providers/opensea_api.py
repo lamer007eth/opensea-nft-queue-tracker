@@ -158,13 +158,17 @@ class OpenSeaApiProvider(ListingsProvider):
         return None
 
     def _extract_offer_price_native(self, item: dict[str, Any]) -> float | None:
+        quantity = self._extract_offer_quantity(item)
+        divisor = quantity if quantity and quantity > 0 else 1.0
+
         price_obj = item.get("price") if isinstance(item.get("price"), dict) else None
         if isinstance(price_obj, dict):
-            # In offers endpoint, "price.value" is usually the raw on-chain amount in wei.
+            # In collection offers, "price.value" is the total bid amount for the offer.
+            # OpenSea UI shows the per-item offer, so normalize by offer quantity.
             value = price_obj.get("value")
             if value is not None:
                 try:
-                    parsed = float(value)
+                    parsed = float(value) / divisor
                     if parsed > 0:
                         return parsed
                 except (TypeError, ValueError):
@@ -175,7 +179,7 @@ class OpenSeaApiProvider(ListingsProvider):
             for key in ("value", "price", "decimal"):
                 if key in current:
                     try:
-                        parsed = float(current[key])
+                        parsed = float(current[key]) / divisor
                         if parsed > 0:
                             return parsed
                     except (TypeError, ValueError):
@@ -186,7 +190,7 @@ class OpenSeaApiProvider(ListingsProvider):
             if value is None:
                 continue
             try:
-                parsed = float(value)
+                parsed = float(value) / divisor
                 if parsed > 0:
                     return parsed
             except (TypeError, ValueError):
@@ -203,13 +207,23 @@ class OpenSeaApiProvider(ListingsProvider):
                         for key in ("startAmount", "endAmount"):
                             if key in first:
                                 try:
-                                    parsed = float(first[key])
+                                    parsed = float(first[key]) / divisor
                                     if parsed > 0:
                                         return parsed
                                 except (TypeError, ValueError):
                                     continue
 
         return None
+
+    def _extract_offer_quantity(self, item: dict[str, Any]) -> float | None:
+        value = item.get("remaining_quantity")
+        if value is None:
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
 
     def _request_json(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
         last_error: Exception | None = None
